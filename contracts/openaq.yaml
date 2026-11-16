@@ -1,0 +1,120 @@
+apiVersion: v3.2.0
+kind: DataContract
+id: urn:datacontract:airq:openaq
+name: OpenAQ measurements
+version: 1.0.0
+status: active
+description:
+  purpose: >-
+    One row per OpenAQ sensor, pollutant, and UTC measurement timestamp. The contract
+    protects the raw DuckDB table before dbt transforms it.
+  usage: >-
+    The first AirQ delivery ingests one OpenAQ API source, upserts observations by a
+    stable business key, and exposes the result through a dbt staging model.
+team:
+  name: AirQ team
+  members:
+    - username: Haroun-MH
+      role: Owner
+
+servers:
+  - server: local
+    type: duckdb
+    database: "${AIRQ_DUCKDB_PATH:-warehouse.duckdb}"
+    schema: raw
+
+schema:
+  - name: openaq_measurements
+    physicalName: openaq_measurements
+    description: Raw normalized OpenAQ measurements.
+    properties:
+      - name: observation_id
+        logicalType: string
+        physicalType: VARCHAR
+        required: true
+        unique: true
+        primaryKey: true
+        description: Stable key based on sensor_id, parameter, and measured_at.
+      - name: location_id
+        logicalType: integer
+        physicalType: BIGINT
+        required: true
+      - name: sensor_id
+        logicalType: integer
+        physicalType: BIGINT
+        required: true
+      - name: location_name
+        logicalType: string
+        physicalType: VARCHAR
+        required: true
+      - name: locality
+        logicalType: string
+        physicalType: VARCHAR
+      - name: country_code
+        logicalType: string
+        physicalType: VARCHAR
+      - name: latitude
+        logicalType: number
+        physicalType: DOUBLE
+      - name: longitude
+        logicalType: number
+        physicalType: DOUBLE
+      - name: parameter
+        logicalType: string
+        physicalType: VARCHAR
+        required: true
+        enum:
+          - value: pm10
+          - value: pm25
+          - value: no2
+          - value: o3
+          - value: so2
+          - value: co
+          - value: nox
+      - name: units
+        logicalType: string
+        physicalType: VARCHAR
+        required: true
+      - name: value
+        logicalType: number
+        physicalType: DOUBLE
+        required: true
+      - name: measured_at
+        logicalType: timestamp
+        physicalType: TIMESTAMPTZ
+        required: true
+      - name: measured_at_local
+        logicalType: string
+        physicalType: VARCHAR
+      - name: source
+        logicalType: string
+        physicalType: VARCHAR
+        required: true
+        enum:
+          - value: openaq
+      - name: ingested_at
+        logicalType: timestamp
+        physicalType: TIMESTAMPTZ
+        required: true
+    quality:
+      - type: sql
+        description: Every observation must have a positive location and sensor identifier.
+        query: |
+          SELECT count(*)
+          FROM openaq_measurements
+          WHERE location_id <= 0 OR sensor_id <= 0
+        mustBe: 0
+      - type: sql
+        description: Measurements must not be negative.
+        query: |
+          SELECT count(*)
+          FROM openaq_measurements
+          WHERE value < 0
+        mustBe: 0
+      - type: sql
+        description: Measurements must not exceed the plausibility limit.
+        query: |
+          SELECT count(*)
+          FROM openaq_measurements
+          WHERE value > 10000
+        mustBe: 0

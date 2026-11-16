@@ -1,0 +1,8 @@
+airq:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: "{{ env_var('AIRQ_DUCKDB_PATH', 'warehouse.duckdb') }}"
+      schema: main
+      threads: 1

@@ -1,0 +1,31 @@
+services:
+  ingestion:
+    image: airq:local
+    build:
+      context: .
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      AIRQ_DUCKDB_PATH: /app/data/warehouse.duckdb
+    volumes:
+      - airq_data:/app/data
+    command: ["python", "-m", "airq.pipeline"]
+    restart: "no"
+
+  dbt:
+    image: airq:local
+    depends_on:
+      ingestion:
+        condition: service_completed_successfully
+    environment:
+      AIRQ_DUCKDB_PATH: /app/data/warehouse.duckdb
+    volumes:
+      - airq_data:/app/data
+    command: >
+      sh -c "dbt build --project-dir dbt --profiles-dir dbt &&
+             datacontract test contracts/openaq.yaml --server local"
+    restart: "no"
+
+volumes:
+  airq_data:

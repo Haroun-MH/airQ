@@ -1,0 +1,41 @@
+# Resources are local course material and are intentionally not published.
+resources/
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Local data and generated dbt artifacts
+data/
+*.duckdb
+*.duckdb.wal
+target/
+dbt_packages/
+dbt/logs/
+dbt/.user.yml
+logs/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Test and tool output
+test-results/
+junit.xml

@@ -1,0 +1,3 @@
+services:
+  ingestion:
+    command: ["python", "scripts/build_fixture_warehouse.py"]

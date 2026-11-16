@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip && python -m pip install ".[dev]"
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Run unit tests
+        run: pytest --cov=airq --cov-report=term-missing
+
+      - name: Build a contract-compliant fixture warehouse
+        env:
+          AIRQ_DUCKDB_PATH: ${{ runner.temp }}/warehouse.duckdb
+        run: |
+          python scripts/build_fixture_warehouse.py
+          dbt build --project-dir dbt --profiles-dir dbt
+          datacontract test contracts/openaq.yaml --server local
+
+      - name: Upload dbt artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dbt-artifacts
+          path: target/
+          if-no-files-found: ignore

@@ -1,0 +1,35 @@
+version: 2
+
+models:
+  - name: stg_openaq_measurements
+    description: Typed OpenAQ measurements with one row per business observation.
+    columns:
+      - name: observation_id
+        description: Stable SHA-256 key based on sensor, parameter, and UTC timestamp.
+        data_tests:
+          - not_null
+          - unique
+      - name: location_id
+        data_tests:
+          - not_null
+      - name: sensor_id
+        data_tests:
+          - not_null
+      - name: location_name
+        data_tests:
+          - not_null
+      - name: parameter
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["pm10", "pm25", "no2", "o3", "so2", "co", "nox"]
+      - name: units
+        data_tests:
+          - not_null
+      - name: value
+        data_tests:
+          - not_null
+      - name: measured_at
+        data_tests:
+          - not_null
