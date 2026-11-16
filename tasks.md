@@ -76,21 +76,24 @@
   - [x] `.github/workflows/` : pipelines CI.
   - [x] `docs/` : architecture et décisions, si nécessaire.
 
-- [ ] **Configurer la protection de `main`**
-  - [ ] Exiger une pull request avant toute fusion.
-  - [ ] Exiger au moins une revue par un coéquipier.
-  - [ ] Empêcher les force-push et la suppression de `main`.
-  - [ ] Faire passer les contrôles CI obligatoires avant fusion.
-  - Note : la configuration GitHub doit être activée dans l’interface ou via l’API
-    GitHub ; le README et `docs/contributing.md` contiennent déjà les règles attendues.
+- [x] **Configurer la protection de `main`**
+  - [x] Exiger une pull request avant toute fusion.
+  - [x] Exiger au moins une revue par un coéquipier.
+  - [x] Empêcher les force-push et la suppression de `main`.
+  - [x] Faire passer les contrôles CI obligatoires avant fusion.
+  - Preuve (2026-11-16) : `GET /repos/Haroun-MH/airQ/branches/main/protection` retourne
+    `required_status_checks=validate` en mode strict, `required_approving_review_count=1`,
+    `require_last_push_approval=true`, `enforce_admins=true`, `allow_force_pushes=false`
+    et `allow_deletions=false`.
 
 - [x] **Établir le flux de contribution**
   - [x] Documenter une branche par tâche : `feature/...` ou `fix/...`.
   - [x] Faire relire chaque PR par un membre différent de son auteur.
   - [x] Ne jamais merger une PR dont la CI est rouge.
 
-**Preuve :** README et `docs/contributing.md` à jour, aucun secret dans Git. La
-protection de branche reste à confirmer sur GitHub.
+**Preuve :** README et `docs/contributing.md` à jour, aucun secret dans Git, dépôt
+initialisé sur `main` et poussé sur `https://github.com/Haroun-MH/airQ`, protection de
+branche confirmée par l’API GitHub.
 
 ---
 
@@ -282,35 +285,43 @@ faire lorsque Docker Desktop est démarré.
   - [x] Le workflow échoue si une transformation ou un test dbt échoue.
   - [x] Conserver les logs utiles en artefacts de CI.
 
-- [ ] **Tester la CI avec une PR volontairement rouge**
-  - [ ] Ajouter un test ou une violation temporaire.
-  - [ ] Vérifier que la PR passe en rouge.
-  - [ ] Vérifier que la fusion est impossible tant que le contrôle échoue.
-  - [ ] Supprimer la modification après la preuve.
+- [x] **Tester la CI avec une PR volontairement rouge**
+  - [x] Ajouter un test ou une violation temporaire → PR #1 (`chore/ci-red-proof`) avec
+        `tests/test_red_proof.py`.
+  - [x] Vérifier que la PR passe en rouge → run Actions `43963315901`, conclusion
+        `failure` sur le job `validate`.
+  - [x] Vérifier que la fusion est impossible tant que le contrôle échoue →
+        `mergeable_state=blocked` et `PUT /pulls/1/merge` → HTTP 405, « Required status
+        check "validate" is failing ».
+  - [x] Supprimer la modification après la preuve → PR #1 fermée, branche distante
+        `chore/ci-red-proof` supprimée, test temporaire retiré du dépôt.
 
 - [x] **Configurer les secrets**
   - [x] Prévoir l’ajout de `OPENAQ_API_KEY` dans les secrets GitHub si la CI en a besoin.
   - [x] Ne jamais afficher le secret dans les logs.
   - [x] Vérifier qu’aucun secret GitHub n’apparaît dans le dépôt.
 
-- [ ] **Finaliser la protection de `main`**
-  - [ ] `main` exige une PR.
-  - [ ] `main` exige au moins une revue.
-  - [ ] `main` exige le statut CI `validate` réussi.
-  - Note : à activer dans les paramètres GitHub du dépôt.
+- [x] **Finaliser la protection de `main`**
+  - [x] `main` exige une PR.
+  - [x] `main` exige au moins une revue.
+  - [x] `main` exige le statut CI `validate` réussi.
+  - Preuve (2026-11-16) : règles actives via l’API GitHub (voir section 1) et preuve
+    rouge ci-dessus.
 
-**Preuve :** `.github/workflows/ci.yml`. La preuve verte/rouge sur GitHub reste à
-produire après la première PR.
+**Preuve :** `.github/workflows/ci.yml`, run vert `43962686427` sur `main`, run rouge
+`43963315901` sur la PR #1, et refus HTTP 405 de l’API de fusion. La revue humaine
+d’une PR verte reste à faire par un coéquipier (`Merie1m` a les droits d’écriture).
 
 ---
 
 ## 7. Vérification finale de la Partie 2
 
-- [ ] **Partie Git**
-  - [ ] README clair et à jour.
-  - [ ] `main` protégé.
-  - [ ] Aucune fusion directe sur `main`.
-  - [ ] `.env` et les secrets ignorés.
+- [x] **Partie Git**
+  - [x] README clair et à jour.
+  - [x] `main` protégé.
+  - [x] Aucune fusion directe sur `main` (seul le commit d’amorçage initial est
+        direct ; la protection bloque désormais les pushes directs).
+  - [x] `.env` et les secrets ignorés.
 
 - [ ] **Partie ingestion**
   - [ ] Une source API réellement testée.

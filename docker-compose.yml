@@ -15,6 +15,8 @@ services:
 
   dbt:
     image: airq:local
+    build:
+      context: .
     depends_on:
       ingestion:
         condition: service_completed_successfully

@@ -220,7 +220,9 @@ airq_data/             Docker-managed DuckDB volume (not in Git)
 - [x] Versioned, automatically verified data contract
 - [x] Docker Compose for ingestion + dbt + contract
 - [x] GitHub Actions workflow
-- [ ] Confirm branch protection and a reviewed pull request on GitHub
+- [x] Branch protection enabled on `main` (pull request required, one approving review,
+      the `validate` status check required, force pushes and deletion disabled)
+- [ ] Obtain one approving review from a teammate on an open pull request
 - [ ] Run against the live OpenAQ API and record observed sensor frequency
 - [ ] Demonstrate two live ingestion runs with an unchanged row count
 
