@@ -120,22 +120,27 @@ On Windows without `make`, run the commands in `Makefile` individually.
 Start Docker Desktop, create `.env`, and run:
 
 ```bash
-docker compose up --build --abort-on-container-exit
+docker compose up --build
 ```
 
 Compose performs these steps:
 
 1. `ingestion` extracts OpenAQ data and writes it to the `airq_data` volume;
-2. `dbt` runs only after ingestion succeeds;
+2. `dbt` runs only after ingestion succeeds (`service_completed_successfully`);
 3. the data contract is tested after dbt succeeds.
 
-The service exits non-zero if ingestion, a dbt test, or the contract fails.
+The command exits non-zero if ingestion, a dbt test, or the contract fails.
+
+> **Do not add `--abort-on-container-exit` here.** That flag stops every container as
+> soon as *any* container exits, including the one-shot `ingestion` container that is
+> supposed to finish before `dbt` starts. Without the flag, Compose runs the two
+> services in order and still returns a non-zero exit code when a step fails.
 
 To exercise the same Docker chain without an API key, use the deterministic Compose
 override:
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.test.yml up --build --abort-on-container-exit
+docker compose -f docker-compose.yml -f docker-compose.test.yml up --build
 ```
 
 This replaces only the ingestion command with the fixture builder. The same volume,

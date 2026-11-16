@@ -243,23 +243,36 @@ test d’invalidation `tests/test_contract.py`.
   - [x] Dépendance `service_completed_successfully` entre ingestion et dbt.
   - [x] Statut de sortie vérifiable pour chaque service.
 
-- [ ] **Tester le démarrage complet**
-  - [ ] Vérifier `docker compose build`.
-  - [ ] Vérifier `docker compose up` depuis un environnement propre.
-  - [ ] Vérifier que la base DuckDB et les tables dbt sont créées.
-  - [ ] Vérifier que le conteneur échoue avec un code non nul si la CI échoue.
-  - [ ] Vérifier qu’une seconde exécution ne crée pas de doublons.
-  - Note : Docker Desktop est installé, mais son daemon n’était pas démarré pendant
-    l’implémentation.
+- [x] **Tester le démarrage complet**
+  - [x] Vérifier `docker compose build` → image `airq:local` construite (Docker 29.9.3,
+        image partagée par les deux services).
+  - [x] Vérifier `docker compose up` depuis un environnement propre → volume recréé,
+        ingestion puis dbt + contrat, code de sortie 0.
+  - [x] Vérifier que la base DuckDB et les tables dbt sont créées →
+        `raw.openaq_measurements`, `main.stg_openaq_measurements`,
+        `main.latest_air_quality_by_location`.
+  - [x] Vérifier que le conteneur échoue avec un code non nul si la CI échoue →
+        `dbt-1 exited with code 1` et `docker compose up` retourne 1 ; le contrat
+        échoue également dans l’image sur une valeur négative (sortie 1).
+  - [x] Vérifier qu’une seconde exécution ne crée pas de doublons → 1re exécution
+        « 2 inserted, 0 updated », 2e « 0 inserted, 2 updated », `RAW_ROWS` toujours 2.
+  - [x] Vérifier que le conteneur s’exécute sans privilèges → `uid=10001(airq)`.
 
 - [x] **Finaliser la commande de démarrage**
   - [x] Documenter une commande simple :
-        `docker compose up --build --abort-on-container-exit`
+        `docker compose up --build`
   - [x] Éviter qu’un utilisateur doive lancer plusieurs commandes manuelles pour obtenir
         ingestion + transformations + validation.
+  - Note : `--abort-on-container-exit` est volontairement omis. Ce drapeau arrête tous
+        les conteneurs dès que le conteneur `ingestion` sort, alors qu’il doit se
+        terminer avant le démarrage de `dbt` ; la commande échouerait donc même en cas
+        de succès. Sans ce drapeau, Compose enchaîne les deux services et retourne
+        quand même un code non nul si une étape échoue.
 
-**Preuve :** `Dockerfile`, `docker-compose.yml` et README. Le test d’exécution reste à
-faire lorsque Docker Desktop est démarré.
+**Preuve :** `Dockerfile`, `docker-compose.yml`, `docker-compose.test.yml` et README.
+Vérification locale (2026-11-16) : `docker compose build` puis
+`docker compose -f docker-compose.yml -f docker-compose.test.yml up` → code de sortie 0,
+23 contrôles dbt et 46 contrôles de contrat réussis.
 
 ---
 
@@ -324,28 +337,31 @@ d’une PR verte reste à faire par un coéquipier (`Merie1m` a les droits d’�
   - [x] `.env` et les secrets ignorés.
 
 - [ ] **Partie ingestion**
-  - [ ] Une source API réellement testée.
-  - [ ] Ingestion exécutable.
-  - [ ] Deux exécutions successives donnent le même nombre de lignes.
+  - [ ] Une source API réellement testée (blocage : aucune clé `OPENAQ_API_KEY` dans
+        l’environnement ; l’API OpenAQ répond HTTP 401 sans clé).
+  - [x] Ingestion exécutable (exécutée de bout en bout dans Docker sur les fixtures).
+  - [x] Deux exécutions successives donnent le même nombre de lignes (fixture Docker :
+        2 lignes après deux exécutions ; test `tests/test_load.py`).
 
-- [ ] **Partie DuckDB/dbt**
-  - [ ] Base DuckDB générable depuis zéro.
-  - [ ] Au moins un modèle staging.
-  - [ ] Tests `not_null` et `unique` présents et passants.
+- [x] **Partie DuckDB/dbt**
+  - [x] Base DuckDB générable depuis zéro.
+  - [x] Au moins un modèle staging.
+  - [x] Tests `not_null` et `unique` présents et passants.
 
-- [ ] **Partie contrat**
-  - [ ] Contrat versionné.
-  - [ ] Vérification automatique.
-  - [ ] La vérification échoue sur une donnée non conforme.
+- [x] **Partie contrat**
+  - [x] Contrat versionné.
+  - [x] Vérification automatique.
+  - [x] La vérification échoue sur une donnée non conforme (test pytest et contrôle
+        dans l’image Docker, code de sortie 1).
 
-- [ ] **Partie Docker**
-  - [ ] `docker compose up` lance ingestion + dbt.
-  - [ ] Le README contient les commandes exactes.
+- [x] **Partie Docker**
+  - [x] `docker compose up` lance ingestion + dbt.
+  - [x] Le README contient les commandes exactes.
 
-- [ ] **Partie CI**
-  - [ ] GitHub Actions se déclenche à chaque PR.
-  - [ ] Tests, contrat et dbt sont exécutés.
-  - [ ] Une PR rouge est bloquée.
+- [x] **Partie CI**
+  - [x] GitHub Actions se déclenche à chaque PR (run `43965122788` sur la PR #2).
+  - [x] Tests, contrat et dbt sont exécutés.
+  - [x] Une PR rouge est bloquée (PR #1, run `43963315901`, fusion refusée en 405).
 
 - [ ] **Règles d’équipe**
   - [ ] Chaque coéquipier a travaillé sur au moins deux briques.
