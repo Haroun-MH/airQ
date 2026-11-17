@@ -76,34 +76,42 @@
   - [x] `.github/workflows/` : pipelines CI.
   - [x] `docs/` : architecture et décisions, si nécessaire.
 
-- [ ] **Configurer la protection de `main`**
-  - [ ] Exiger une pull request avant toute fusion.
-  - [ ] Exiger au moins une revue par un coéquipier.
-  - [ ] Empêcher les force-push et la suppression de `main`.
-  - [ ] Faire passer les contrôles CI obligatoires avant fusion.
-  - Note : la configuration GitHub doit être activée dans l’interface ou via l’API
-    GitHub ; le README et `docs/contributing.md` contiennent déjà les règles attendues.
+- [x] **Configurer la protection de `main`**
+  - [x] Exiger une pull request avant toute fusion.
+  - [x] Exiger au moins une revue par un coéquipier.
+  - [x] Empêcher les force-push et la suppression de `main`.
+  - [x] Faire passer les contrôles CI obligatoires avant fusion.
+  - Preuve (2026-11-16) : `GET /repos/Haroun-MH/airQ/branches/main/protection` retourne
+    `required_status_checks=validate` en mode strict, `required_approving_review_count=1`,
+    `require_last_push_approval=true`, `enforce_admins=true`, `allow_force_pushes=false`
+    et `allow_deletions=false`.
 
 - [x] **Établir le flux de contribution**
   - [x] Documenter une branche par tâche : `feature/...` ou `fix/...`.
   - [x] Faire relire chaque PR par un membre différent de son auteur.
   - [x] Ne jamais merger une PR dont la CI est rouge.
 
-**Preuve :** README et `docs/contributing.md` à jour, aucun secret dans Git. La
-protection de branche reste à confirmer sur GitHub.
+**Preuve :** README et `docs/contributing.md` à jour, aucun secret dans Git, dépôt
+initialisé sur `main` et poussé sur `https://github.com/Haroun-MH/airQ`, protection de
+branche confirmée par l’API GitHub.
 
 ---
 
 ## 2. Ingestion idempotente de l’API OpenAQ
 
-- [ ] **Tester réellement l’API OpenAQ**
-  - [ ] Obtenir/configurer une clé API.
-  - [ ] Effectuer un appel minimal avec succès.
+- [x] **Tester réellement l'API OpenAQ**
+  - [x] Obtenir/configurer une clé API.
+  - [x] Effectuer un appel minimal avec succès.
   - [x] Conserver uniquement des exemples de réponse anonymisés ou sans secret.
-  - [ ] Noter la fréquence réelle des mesures et les champs disponibles.
-  - [x] Vérifier les limites de débit et le comportement en cas d’erreur.
-  - Note : la clé n’est pas encore disponible dans l’environnement ; le client et les
-    fixtures sont prêts pour le test réel.
+  - [x] Noter la fréquence réelle des mesures et les champs disponibles.
+  - [x] Vérifier les limites de débit et le comportement en cas d'erreur.
+  - Preuve (2026-11-17, clé réelle, jamais dans Git) : `GET /locations?iso=MA&limit=1`
+    → HTTP 200, en-têtes `X-RateLimit-Remaining=59 / Limit=60` ; découverte `iso=MA`
+    → 5 localisations ; `python -m airq.pipeline` exécuté deux fois sur une base vierge →
+    501 observations valides ingérées, puis « 0 inserted, 501 updated » (501 lignes
+    inchangées) ; fréquence observée : médiane exactement 1,0 h pour les 3 capteurs
+    actifs (167 obs / 166 h, pm25) ; `dbt build` → PASS=23, `datacontract test` →
+    46 contrôles valides sur la base réelle.
 
 - [x] **Créer un client d’ingestion**
   - [x] Lire l’URL, la clé et les paramètres depuis des variables d’environnement.
@@ -138,8 +146,10 @@ protection de branche reste à confirmer sur GitHub.
   - [x] Expliquer comment comparer le nombre de lignes avant et après.
   - [x] Enregistrer la preuve attendue dans le README ou dans la PR.
 
-**Preuve :** `tests/test_load.py::test_running_ingestion_twice_does_not_create_duplicates`
-et le README. Le test réel avec une clé OpenAQ reste à effectuer.
+**Preuve :** `tests/test_load.py::test_running_ingestion_twice_does_not_create_duplicates`,
+le README, et la preuve réelle du 2026-11-17 : deux exécutions consécutives avec une clé
+OpenAQ → 501 lignes après la première (« 501 inserted ») comme après la seconde
+(« 0 inserted, 501 updated ») — même nombre de lignes sur données réelles.
 
 ---
 
@@ -240,23 +250,36 @@ test d’invalidation `tests/test_contract.py`.
   - [x] Dépendance `service_completed_successfully` entre ingestion et dbt.
   - [x] Statut de sortie vérifiable pour chaque service.
 
-- [ ] **Tester le démarrage complet**
-  - [ ] Vérifier `docker compose build`.
-  - [ ] Vérifier `docker compose up` depuis un environnement propre.
-  - [ ] Vérifier que la base DuckDB et les tables dbt sont créées.
-  - [ ] Vérifier que le conteneur échoue avec un code non nul si la CI échoue.
-  - [ ] Vérifier qu’une seconde exécution ne crée pas de doublons.
-  - Note : Docker Desktop est installé, mais son daemon n’était pas démarré pendant
-    l’implémentation.
+- [x] **Tester le démarrage complet**
+  - [x] Vérifier `docker compose build` → image `airq:local` construite (Docker 29.9.3,
+        image partagée par les deux services).
+  - [x] Vérifier `docker compose up` depuis un environnement propre → volume recréé,
+        ingestion puis dbt + contrat, code de sortie 0.
+  - [x] Vérifier que la base DuckDB et les tables dbt sont créées →
+        `raw.openaq_measurements`, `main.stg_openaq_measurements`,
+        `main.latest_air_quality_by_location`.
+  - [x] Vérifier que le conteneur échoue avec un code non nul si la CI échoue →
+        `dbt-1 exited with code 1` et `docker compose up` retourne 1 ; le contrat
+        échoue également dans l’image sur une valeur négative (sortie 1).
+  - [x] Vérifier qu’une seconde exécution ne crée pas de doublons → 1re exécution
+        « 2 inserted, 0 updated », 2e « 0 inserted, 2 updated », `RAW_ROWS` toujours 2.
+  - [x] Vérifier que le conteneur s’exécute sans privilèges → `uid=10001(airq)`.
 
 - [x] **Finaliser la commande de démarrage**
   - [x] Documenter une commande simple :
-        `docker compose up --build --abort-on-container-exit`
+        `docker compose up --build`
   - [x] Éviter qu’un utilisateur doive lancer plusieurs commandes manuelles pour obtenir
         ingestion + transformations + validation.
+  - Note : `--abort-on-container-exit` est volontairement omis. Ce drapeau arrête tous
+        les conteneurs dès que le conteneur `ingestion` sort, alors qu’il doit se
+        terminer avant le démarrage de `dbt` ; la commande échouerait donc même en cas
+        de succès. Sans ce drapeau, Compose enchaîne les deux services et retourne
+        quand même un code non nul si une étape échoue.
 
-**Preuve :** `Dockerfile`, `docker-compose.yml` et README. Le test d’exécution reste à
-faire lorsque Docker Desktop est démarré.
+**Preuve :** `Dockerfile`, `docker-compose.yml`, `docker-compose.test.yml` et README.
+Vérification locale (2026-11-16) : `docker compose build` puis
+`docker compose -f docker-compose.yml -f docker-compose.test.yml up` → code de sortie 0,
+23 contrôles dbt et 46 contrôles de contrat réussis.
 
 ---
 
@@ -282,59 +305,74 @@ faire lorsque Docker Desktop est démarré.
   - [x] Le workflow échoue si une transformation ou un test dbt échoue.
   - [x] Conserver les logs utiles en artefacts de CI.
 
-- [ ] **Tester la CI avec une PR volontairement rouge**
-  - [ ] Ajouter un test ou une violation temporaire.
-  - [ ] Vérifier que la PR passe en rouge.
-  - [ ] Vérifier que la fusion est impossible tant que le contrôle échoue.
-  - [ ] Supprimer la modification après la preuve.
+- [x] **Tester la CI avec une PR volontairement rouge**
+  - [x] Ajouter un test ou une violation temporaire → PR #1 (`chore/ci-red-proof`) avec
+        `tests/test_red_proof.py`.
+  - [x] Vérifier que la PR passe en rouge → run Actions `43963315901`, conclusion
+        `failure` sur le job `validate`.
+  - [x] Vérifier que la fusion est impossible tant que le contrôle échoue →
+        `mergeable_state=blocked` et `PUT /pulls/1/merge` → HTTP 405, « Required status
+        check "validate" is failing ».
+  - [x] Supprimer la modification après la preuve → PR #1 fermée, branche distante
+        `chore/ci-red-proof` supprimée, test temporaire retiré du dépôt.
 
 - [x] **Configurer les secrets**
   - [x] Prévoir l’ajout de `OPENAQ_API_KEY` dans les secrets GitHub si la CI en a besoin.
   - [x] Ne jamais afficher le secret dans les logs.
   - [x] Vérifier qu’aucun secret GitHub n’apparaît dans le dépôt.
 
-- [ ] **Finaliser la protection de `main`**
-  - [ ] `main` exige une PR.
-  - [ ] `main` exige au moins une revue.
-  - [ ] `main` exige le statut CI `validate` réussi.
-  - Note : à activer dans les paramètres GitHub du dépôt.
+- [x] **Finaliser la protection de `main`**
+  - [x] `main` exige une PR.
+  - [x] `main` exige au moins une revue.
+  - [x] `main` exige le statut CI `validate` réussi.
+  - Preuve (2026-11-16) : règles actives via l’API GitHub (voir section 1) et preuve
+    rouge ci-dessus.
 
-**Preuve :** `.github/workflows/ci.yml`. La preuve verte/rouge sur GitHub reste à
-produire après la première PR.
+**Preuve :** `.github/workflows/ci.yml`, run vert `43962686427` sur `main`, run rouge
+`43963315901` sur la PR #1, et refus HTTP 405 de l’API de fusion. La revue humaine
+d’une PR verte reste à faire par un coéquipier (`Merie1m` a les droits d’écriture).
 
 ---
 
 ## 7. Vérification finale de la Partie 2
 
-- [ ] **Partie Git**
-  - [ ] README clair et à jour.
-  - [ ] `main` protégé.
-  - [ ] Aucune fusion directe sur `main`.
-  - [ ] `.env` et les secrets ignorés.
+- [x] **Partie Git**
+  - [x] README clair et à jour.
+  - [x] `main` protégé.
+  - [x] Aucune fusion directe sur `main` (seul le commit d’amorçage initial est
+        direct ; la protection bloque désormais les pushes directs).
+  - [x] `.env` et les secrets ignorés.
 
-- [ ] **Partie ingestion**
-  - [ ] Une source API réellement testée.
-  - [ ] Ingestion exécutable.
-  - [ ] Deux exécutions successives donnent le même nombre de lignes.
+- [x] **Partie ingestion**
+  - [x] Une source API réellement testée (2026-11-17 : clé réelle, `iso=MA` → HTTP 200,
+        5 localisations, 501 observations valides ingérées ; en-têtes de débit
+        59/60 req/min respectés).
+  - [x] Ingestion exécutable (exécutée de bout en bout dans Docker sur les fixtures, et
+        en direct avec la clé API réelle).
+  - [x] Deux exécutions successives donnent le même nombre de lignes (fixture Docker :
+        2 lignes après deux exécutions ; données réelles : 501 lignes après deux
+        exécutions — « 501 inserted » puis « 0 inserted, 501 updated » ;
+        test `tests/test_load.py`).
 
-- [ ] **Partie DuckDB/dbt**
-  - [ ] Base DuckDB générable depuis zéro.
-  - [ ] Au moins un modèle staging.
-  - [ ] Tests `not_null` et `unique` présents et passants.
+- [x] **Partie DuckDB/dbt**
+  - [x] Base DuckDB générable depuis zéro.
+  - [x] Au moins un modèle staging.
+  - [x] Tests `not_null` et `unique` présents et passants.
 
-- [ ] **Partie contrat**
-  - [ ] Contrat versionné.
-  - [ ] Vérification automatique.
-  - [ ] La vérification échoue sur une donnée non conforme.
+- [x] **Partie contrat**
+  - [x] Contrat versionné.
+  - [x] Vérification automatique.
+  - [x] La vérification échoue sur une donnée non conforme (test pytest et contrôle
+        dans l’image Docker, code de sortie 1).
 
-- [ ] **Partie Docker**
-  - [ ] `docker compose up` lance ingestion + dbt.
-  - [ ] Le README contient les commandes exactes.
+- [x] **Partie Docker**
+  - [x] `docker compose up` lance ingestion + dbt.
+  - [x] Le README contient les commandes exactes.
 
-- [ ] **Partie CI**
-  - [ ] GitHub Actions se déclenche à chaque PR.
-  - [ ] Tests, contrat et dbt sont exécutés.
-  - [ ] Une PR rouge est bloquée.
+- [x] **Partie CI**
+  - [x] GitHub Actions se déclenche à chaque PR (run `43965122788` sur la PR #2).
+  - [x] Tests, contrat et dbt sont exécutés.
+  - [x] Une PR rouge est bloquée (PR #1, run `43963315901`, fusion refusée en 405).
 
 - [ ] **Règles d’équipe**
   - [ ] Chaque coéquipier a travaillé sur au moins deux briques.

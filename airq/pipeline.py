@@ -11,7 +11,7 @@ from pathlib import Path
 from airq.config import Settings
 from airq.extract import OpenAQClient, default_window, discover_sensors
 from airq.load import connect, count_observations, ensure_raw_table, upsert_observations
-from airq.transform import normalize_measurements
+from airq.transform import ALLOWED_PARAMETERS, normalize_measurements
 from airq.validate import DataQualityError, validate_observations
 
 
@@ -29,6 +29,7 @@ def run(settings: Settings) -> dict[str, int]:
         client,
         location_ids=settings.location_ids,
         country_code=settings.country_code,
+        parameters=ALLOWED_PARAMETERS,
     )
     if not sensors:
         raise DataQualityError(

@@ -24,10 +24,10 @@ fixture-warehouse:
 verify: lint test fixture-warehouse dbt contract
 
 docker-verify:
-	docker compose up --build --abort-on-container-exit
+	docker compose up --build
 
 docker-test:
-	docker compose -f docker-compose.yml -f docker-compose.test.yml up --build --abort-on-container-exit
+	docker compose -f docker-compose.yml -f docker-compose.test.yml up --build
 
 compose: docker-verify
 

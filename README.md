@@ -120,22 +120,27 @@ On Windows without `make`, run the commands in `Makefile` individually.
 Start Docker Desktop, create `.env`, and run:
 
 ```bash
-docker compose up --build --abort-on-container-exit
+docker compose up --build
 ```
 
 Compose performs these steps:
 
 1. `ingestion` extracts OpenAQ data and writes it to the `airq_data` volume;
-2. `dbt` runs only after ingestion succeeds;
+2. `dbt` runs only after ingestion succeeds (`service_completed_successfully`);
 3. the data contract is tested after dbt succeeds.
 
-The service exits non-zero if ingestion, a dbt test, or the contract fails.
+The command exits non-zero if ingestion, a dbt test, or the contract fails.
+
+> **Do not add `--abort-on-container-exit` here.** That flag stops every container as
+> soon as *any* container exits, including the one-shot `ingestion` container that is
+> supposed to finish before `dbt` starts. Without the flag, Compose runs the two
+> services in order and still returns a non-zero exit code when a step fails.
 
 To exercise the same Docker chain without an API key, use the deterministic Compose
 override:
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.test.yml up --build --abort-on-container-exit
+docker compose -f docker-compose.yml -f docker-compose.test.yml up --build
 ```
 
 This replaces only the ingestion command with the fixture builder. The same volume,
@@ -193,8 +198,16 @@ in GitHub Settings → Branches → Branch protection rules:
 OpenAQ does not expose one universal cadence. Many sensors publish hourly, but other
 providers have irregular or delayed reporting. The extractor therefore requests a bounded
 seven-day window by default (`AIRQ_HISTORY_DAYS`) and records the actual `measured_at`
-for every row. The frequency observed in the selected sensors must be documented after
-the first live run.
+for every row.
+
+**Observed frequency (live run, 2026-11-17, Morocco `iso=MA`):** 5 locations discovered,
+of which 3 sensors had data in the 7-day window — all three (ARC Air,
+Marrakech-Residence Mima, UM6P_Bengeurir2, pm25 in µg/m³) publish **hourly**: 167
+observations each over a 166-hour span, median and min/max gap exactly **1.0 h**. The
+remaining sensors (2×pm25, 3×pm10) returned no measurements in the window — sparse and
+stale coverage is real and is why freshness monitoring is planned for a later delivery.
+Filtering to supported pollutants at discovery (`airq/pipeline.py` now passes
+`ALLOWED_PARAMETERS` to `discover_sensors`) keeps a run at ~21 API calls instead of ~61.
 
 OpenAQ's documented free-key rate limit is 60 requests per minute and 2,000 per hour.
 The client retries `429` responses with a bounded backoff.
@@ -220,9 +233,13 @@ airq_data/             Docker-managed DuckDB volume (not in Git)
 - [x] Versioned, automatically verified data contract
 - [x] Docker Compose for ingestion + dbt + contract
 - [x] GitHub Actions workflow
-- [ ] Confirm branch protection and a reviewed pull request on GitHub
-- [ ] Run against the live OpenAQ API and record observed sensor frequency
-- [ ] Demonstrate two live ingestion runs with an unchanged row count
+- [x] Branch protection enabled on `main` (pull request required, one approving review,
+      the `validate` status check required, force pushes and deletion disabled)
+- [ ] Obtain one approving review from a teammate on an open pull request
+- [x] Run against the live OpenAQ API and record observed sensor frequency
+      (2026-11-17: MA discovery, 501 observations, hourly median gap 1.0 h)
+- [x] Demonstrate two live ingestion runs with an unchanged row count
+      (run 1: 501 inserted → run 2: 0 inserted, 501 updated, 501 rows both times)
 
 ## Attribution and licensing
 
