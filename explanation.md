@@ -95,7 +95,7 @@ or duplicated. One bad number reaches the direction, and nobody can trace it bac
 
 | # | Source | Type | Status | Update frequency | Where it lives in the repo |
 |---|---|---|---|---|---|
-| 1 | **OpenAQ v3** (`https://api.openaq.org/v3`) | REST API, `X-API-Key` header, free key | **Implemented and unit-tested** (extraction, normalization, pagination, retries); *live call pending an API key* — the API answers `HTTP 401` without a key, verified | **Irregular by provider** (many sensors publish hourly, others are delayed). OpenAQ does not expose a universal cadence, so the extractor records the real `measured_at` of every row and requests a bounded 7-day window; the observed frequency **must be measured on the first live run** (still to do). Documented free-key limits: 60 requests/minute, 2 000/hour; the client retries `429` with backoff | `airq/extract.py`, `tests/fixtures/openaq_*.json`, `README.md` → *OpenAQ update frequency* |
+| 1 | **OpenAQ v3** (`https://api.openaq.org/v3`) | REST API, `X-API-Key` header, free key | **Implemented, unit-tested and live-tested** (2026-11-17: real key, `iso=MA` discovery → 5 locations, two full runs, 501 observations, `dbt build` PASS=23 and contract 46 checks on the live warehouse) | **Measured**: all 3 active MA sensors publish **hourly** (median gap exactly 1.0 h; 167 obs / 166 h); other sensors were stale in the window. Documented free-key limits: 60 requests/minute, 2 000/hour; the client retries `429` with backoff | `airq/extract.py`, `tests/fixtures/openaq_*.json`, `README.md` → *OpenAQ update frequency*, §3.14 |
 | 2 | **Open-Meteo** (`https://api.open-meteo.com/v1`) | REST API, free key, no signup for basic use | **Planned — Part 3** (roadmap, not yet in scope of this delivery) | Hourly forecast, ~15-min past observations | `docs/architecture.md` → *Planned next stages* |
 
 **Why OpenAQ first:** it is free, it covers multiple cities, it exposes the full
@@ -103,16 +103,16 @@ or duplicated. One bad number reaches the direction, and nobody can trace it bac
 changes often (every hour, per sensor) — which is what the course brief requires
 (*vos données changent souvent et viennent d'au moins une API*).
 
-**Honest Part-1 risk and the two actions that close it:**
+**Honest Part-1 risk and the actions that close it:**
 
 - The brief asks for **2 sources minimum, of which 1 API tested** and their **update
-  frequency**. Today the repo has **one** implemented source (OpenAQ), and its live test
-  is pending a key. Two actions close the gap:
-  1. Run the live OpenAQ ingestion with a real key, twice, and record the observed
-     sensor frequency (this also proves the "2 runs = same row count" rule on real data).
+  frequency**. The repo has **one** implemented source (OpenAQ).
+  1. ~~Run the live OpenAQ ingestion with a real key, twice, and record the observed
+     sensor frequency.~~ **Done 2026-11-17** (see §3.14): two live runs with an
+     unchanged row count (501) and the frequency measured — hourly, median gap 1.0 h.
   2. Add the thin Open-Meteo client (extractor + fixture + one dbt model) so a second
      API exists with its own frequency — this is the natural Part 3 opener and also
-     satisfies the second-source requirement for the defense.
+     satisfies the second-source requirement for the defense. **Still to do.**
 
 ### 2.3 The three business questions the dashboard will answer
 
@@ -232,8 +232,8 @@ Each box maps to real files — see §5 (file catalogue) and §6 (wiring).
 |---|---|---|---|
 | Problématique | The problem, for whom, the 4 prevented failures | §2.1 | ✔ Ready |
 | Sources — 2 minimum | OpenAQ + Open-Meteo table with types and status | §2.2 | ⚠ 2 sources *presented*; only OpenAQ *implemented* |
-| Source API **testée** | Extraction unit-tested on real API fixtures; live call pending key | `tests/test_extract.py`, `tests/test_pipeline.py` (fixtures from `https://api.openaq.org/v3`); live run blocked by missing `OPENAQ_API_KEY` | ⚠ Unit-tested; live test pending |
-| Fréquence de mise à jour | Irregular by provider; 7-day bounded window; limits 60 req/min, 2 000/hour; frequency to measure on first live run | `README.md` → *OpenAQ update frequency*; `airq/extract.py::default_window` | ⚠ Documented; live measurement pending |
+| Source API **testée** | Extraction unit-tested on real API fixtures **and live-tested** (2026-11-17: real key, `GET /locations?iso=MA` → HTTP 200, two full ingestions, 501 observations) | `tests/test_extract.py`, `tests/test_pipeline.py`; live evidence in §3.14 and `README.md` → *OpenAQ update frequency* | ✔ Ready |
+| Fréquence de mise à jour | **Measured, not assumed**: all 3 active MA sensors publish hourly (median gap exactly 1.0 h, 167 obs / 166 h); documented rate limits 60 req/min, 2 000/hour | `README.md` → *OpenAQ update frequency*; query in §3.14 | ✔ Ready |
 | 3 questions métier | The three dashboard questions + which data answers them | §2.3 | ✔ Ready (Q1 answered by the mart; Q2/Q3 data-ready) |
 | Schéma d'architecture | Full chain: sources → ingestion → storage → dbt → orchestration → dashboard → monitoring | §2.4 (and the current-flow version in `docs/architecture.md`) | ✔ Ready |
 | Innovation | Six additions beyond the course, each justified | §2.5 | ✔ Ready |
@@ -437,6 +437,36 @@ artifacts on failure.
   even when everything succeeded. The documented command is now
   `docker compose up --build`, with an explicit warning in `README.md`, and the
   Makefile targets were aligned.
+
+### 3.14 Live OpenAQ run (2026-11-17) — the missing Part 1/Part 2 proof, closed
+
+With a real `OPENAQ_API_KEY` (stored only in the gitignored `.env`; it was briefly
+pasted into the *tracked* `.env.example` and was reverted immediately before any
+commit):
+
+1. **Connectivity**: `GET /locations?countries=MA&limit=1` → the `countries` param is
+   ignored by OpenAQ v3 (returns global results); the pipeline's `iso=MA` param filters
+   correctly → HTTP 200, rate-limit headers `X-RateLimit-Remaining=59 / Limit=60`,
+   5 locations for Morocco.
+2. **Ingestion run 1** (fresh warehouse): `python -m airq.pipeline` → 501 valid
+   observations, `501 inserted, 0 updated`, warehouse rows 501.
+3. **Ingestion run 2** (idempotence on real data): `0 inserted, 501 updated`, warehouse
+   rows still **501** — same row count over two live runs. ✔
+4. **Full chain on the live warehouse**: `dbt build` → `PASS=23 WARN=0 ERROR=0 TOTAL=23`;
+   `datacontract test` → **46 checks valid**.
+5. **Observed frequency** (measured in DuckDB, `lag` window over distinct
+   `measured_at` per sensor): 3 active sensors (ARC Air, Marrakech-Residence Mima,
+   UM6P_Bengeurir2 — all pm25, µg/m³) → 167 observations over a 166-hour span,
+   **median gap exactly 1.0 h (min=max=1.0 h) → hourly**. The 5 other air-quality
+   sensors returned nothing in the 7-day window (sparse/stale coverage — the future
+   freshness monitor exists for a reason).
+6. **Efficiency fix found by the live run**: `discover_sensors` was called without a
+   parameter filter, so the pipeline fetched all 28 MA sensors (temperature, humidity,
+   pm1, um003…) and rejected 2 004 out-of-scope rows, wasting ~20 API calls per run.
+   `airq/pipeline.py` now passes `parameters=ALLOWED_PARAMETERS` at discovery →
+   8 sensors fetched, `rejected 0`, same 501 observations (~21 calls/run instead of
+   ~61). Re-verified after the change: `ruff` clean, `pytest` 21 passed, fresh live
+   double-run again `501 rows` both times, dbt `PASS=23`, contract 46 checks.
 
 ---
 
@@ -726,6 +756,10 @@ docker compose up --build
 | Protection configured | API: `validate` strict, 1 approval, last-push approval, no force push/deletion | `GET /repos/Haroun-MH/airQ/branches/main/protection` |
 | No secrets in Git | `.env` absent (template only), dummy `"secret"` in tests, `resources/` and `*.duckdb` ignored | `git ls-files`, `git check-ignore -v resources` |
 | OpenAQ requires a key | `GET https://api.openaq.org/v3/locations?limit=1` without a key → HTTP 401 | `curl -i` on that URL |
+| OpenAQ live-tested with a real key | `GET /locations?iso=MA` → HTTP 200, headers `X-RateLimit-Remaining=59/Limit=60`; 5 MA locations | §3.14 step 1 |
+| Idempotence on **real** data | run 1 `501 inserted, 0 updated` → run 2 `0 inserted, 501 updated`, warehouse rows 501 in both runs | §3.14 steps 2–3 |
+| Full chain on the live warehouse | `dbt build` PASS=23 WARN=0 ERROR=0; `datacontract test` → 46 checks valid | §3.14 step 4 |
+| Observed frequency measured | 3 active MA sensors, all hourly: median gap exactly 1.0 h (167 obs / 166 h) | §3.14 step 5 |
 
 ---
 
@@ -734,7 +768,7 @@ docker compose up --build
 | # | Item | Why it matters | Where it is tracked |
 |---|---|---|---|
 | 1 | **Merge PR #2** — needs `Merie1m`'s approval (branch protection forbids self-approval) | `main` still carries the old `--abort-on-container-exit` wording until it merges; PR #2 carries the fix and all evidence | PR #2 (open, review requested) |
-| 2 | **Live OpenAQ run** with a real `OPENAQ_API_KEY`, twice, recording the row count and the observed sensor frequency | Closes "source API testée + fréquence" for Part 1 and the live idempotence proof for Part 2 | `README.md` checklist, `tasks.md` §2 and §7 |
+| 2 | ~~Live OpenAQ run~~ **Closed 2026-11-17**: real key used, two live runs with an unchanged row count (501), observed frequency hourly (median 1.0 h), full chain green on the live warehouse | Done — see §3.14 and `README.md` → *OpenAQ update frequency* | ✔ |
 | 3 | **Second source** (Open-Meteo thin client + fixture + one model) | Satisfies "2 sources minimum" for the Part 1 defense; natural Part 3 opener | §2.2, roadmap in `docs/architecture.md` |
 | 4 | **Second contributor** — `Merie1m` owns a brick in a dedicated PR (Git history must show it) | Team rule "chacun touche au moins 2 briques" | §2.6 |
 | 5 | **Cleanup (non-blocking)**: `pandas`/`pandera` are declared in the `dev` extra but unused (validation is hand-written in `airq/validate.py`); `dbt_project.yml` uses the deprecated `target-path` (dbt 1.12 suggests `--target-path`/`DBT_TARGET_PATH`) | Smaller install, future-proof dbt | `pyproject.toml`, `dbt/dbt_project.yml` |

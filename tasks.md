@@ -99,14 +99,19 @@ branche confirmée par l’API GitHub.
 
 ## 2. Ingestion idempotente de l’API OpenAQ
 
-- [ ] **Tester réellement l’API OpenAQ**
-  - [ ] Obtenir/configurer une clé API.
-  - [ ] Effectuer un appel minimal avec succès.
+- [x] **Tester réellement l'API OpenAQ**
+  - [x] Obtenir/configurer une clé API.
+  - [x] Effectuer un appel minimal avec succès.
   - [x] Conserver uniquement des exemples de réponse anonymisés ou sans secret.
-  - [ ] Noter la fréquence réelle des mesures et les champs disponibles.
-  - [x] Vérifier les limites de débit et le comportement en cas d’erreur.
-  - Note : la clé n’est pas encore disponible dans l’environnement ; le client et les
-    fixtures sont prêts pour le test réel.
+  - [x] Noter la fréquence réelle des mesures et les champs disponibles.
+  - [x] Vérifier les limites de débit et le comportement en cas d'erreur.
+  - Preuve (2026-11-17, clé réelle, jamais dans Git) : `GET /locations?iso=MA&limit=1`
+    → HTTP 200, en-têtes `X-RateLimit-Remaining=59 / Limit=60` ; découverte `iso=MA`
+    → 5 localisations ; `python -m airq.pipeline` exécuté deux fois sur une base vierge →
+    501 observations valides ingérées, puis « 0 inserted, 501 updated » (501 lignes
+    inchangées) ; fréquence observée : médiane exactement 1,0 h pour les 3 capteurs
+    actifs (167 obs / 166 h, pm25) ; `dbt build` → PASS=23, `datacontract test` →
+    46 contrôles valides sur la base réelle.
 
 - [x] **Créer un client d’ingestion**
   - [x] Lire l’URL, la clé et les paramètres depuis des variables d’environnement.
@@ -141,8 +146,10 @@ branche confirmée par l’API GitHub.
   - [x] Expliquer comment comparer le nombre de lignes avant et après.
   - [x] Enregistrer la preuve attendue dans le README ou dans la PR.
 
-**Preuve :** `tests/test_load.py::test_running_ingestion_twice_does_not_create_duplicates`
-et le README. Le test réel avec une clé OpenAQ reste à effectuer.
+**Preuve :** `tests/test_load.py::test_running_ingestion_twice_does_not_create_duplicates`,
+le README, et la preuve réelle du 2026-11-17 : deux exécutions consécutives avec une clé
+OpenAQ → 501 lignes après la première (« 501 inserted ») comme après la seconde
+(« 0 inserted, 501 updated ») — même nombre de lignes sur données réelles.
 
 ---
 
@@ -336,12 +343,16 @@ d’une PR verte reste à faire par un coéquipier (`Merie1m` a les droits d’�
         direct ; la protection bloque désormais les pushes directs).
   - [x] `.env` et les secrets ignorés.
 
-- [ ] **Partie ingestion**
-  - [ ] Une source API réellement testée (blocage : aucune clé `OPENAQ_API_KEY` dans
-        l’environnement ; l’API OpenAQ répond HTTP 401 sans clé).
-  - [x] Ingestion exécutable (exécutée de bout en bout dans Docker sur les fixtures).
+- [x] **Partie ingestion**
+  - [x] Une source API réellement testée (2026-11-17 : clé réelle, `iso=MA` → HTTP 200,
+        5 localisations, 501 observations valides ingérées ; en-têtes de débit
+        59/60 req/min respectés).
+  - [x] Ingestion exécutable (exécutée de bout en bout dans Docker sur les fixtures, et
+        en direct avec la clé API réelle).
   - [x] Deux exécutions successives donnent le même nombre de lignes (fixture Docker :
-        2 lignes après deux exécutions ; test `tests/test_load.py`).
+        2 lignes après deux exécutions ; données réelles : 501 lignes après deux
+        exécutions — « 501 inserted » puis « 0 inserted, 501 updated » ;
+        test `tests/test_load.py`).
 
 - [x] **Partie DuckDB/dbt**
   - [x] Base DuckDB générable depuis zéro.
